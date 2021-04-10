@@ -1,4 +1,4 @@
-import { INode, parse, stringify } from "svgson";
+import { INode } from "svgson";
 import toPath from "element-to-path";
 import {
   parse as pathParse,
@@ -7,6 +7,8 @@ import {
 } from "svg-path-tools";
 import { addIcon, setIcon } from "obsidian";
 
+// Parse the viewbox attribute for the maximum value
+// This is used to scale the svgs
 export function getMaxViewBox(parsedSVG: INode) {
   const vb = parsedSVG.attributes.viewBox;
 
@@ -25,8 +27,12 @@ export function getMaxViewBox(parsedSVG: INode) {
   }, 0);
 }
 
-export function scaleSVG(node: INode, scaleOptions: { scale: number, round: number }) {
-  let o = Object.assign({}, node);
+// Scale a parsed SVG; adapted from https://github.com/elrumordelaluz/svg-path-tools
+export function scaleSVG(
+  node: INode,
+  scaleOptions: { scale: number; round: number }
+) {
+  const o = Object.assign({}, node);
   const { scale: s } = scaleOptions || { scale: 1 };
 
   if (/(rect|circle|ellipse|polygon|polyline|line|path)/.test(o.name)) {
@@ -51,7 +57,11 @@ export function scaleSVG(node: INode, scaleOptions: { scale: number, round: numb
     }
 
     if (!o.attributes.fill) o.attributes.fill = "currentColor";
-    if (!o.attributes.stroke && (o.attributes.strokeWidth || o.attributes['stroke-width'])) o.attributes.stroke = "currentColor";
+    if (
+      !o.attributes.stroke &&
+      (o.attributes.strokeWidth || o.attributes["stroke-width"])
+    )
+      o.attributes.stroke = "currentColor";
 
     o.name = "path";
   } else if (o.children && Array.isArray(o.children)) {
@@ -62,6 +72,7 @@ export function scaleSVG(node: INode, scaleOptions: { scale: number, round: numb
   return o;
 }
 
+// Retrieve the default SVG markup for a given icon name
 export function getDefaultIconSVG(name: string) {
   const container = createDiv("div");
   setIcon(container, name);
@@ -72,9 +83,11 @@ export function getDefaultIconSVG(name: string) {
   return inner;
 }
 
+// Override a default icon's SVG markup
 export function replaceIconSVG(name: string, content: string) {
   addIcon(name, content);
 
+  // Replace any icons that already exist in the dom
   document.querySelectorAll(`svg.${name}`).forEach((el) => {
     el.innerHTML = content;
   });

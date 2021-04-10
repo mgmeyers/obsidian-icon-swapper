@@ -1,3 +1,4 @@
+// This list was taken from obsidian's app.js
 export const icons = [
   "any-key",
   "audio-file",

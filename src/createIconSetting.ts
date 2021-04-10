@@ -1,15 +1,18 @@
 import { setIcon, Setting, TextAreaComponent } from "obsidian";
 import { IconManager, validSvgRegEx } from "./iconManager";
 
-export function createIconSetting(opts: {
+interface Options {
   containerEl: HTMLElement;
   name: string;
   iconManager: IconManager;
-}) {
-  const { containerEl, name, iconManager } = opts;
+}
+
+export function createIconSetting({ containerEl, name, iconManager }: Options) {
   let textComponent: TextAreaComponent;
 
-  const s = new Setting(containerEl)
+  new Setting(containerEl)
+
+    // SVG input textarea
     .addTextArea((textarea) => {
       textComponent = textarea;
 
@@ -18,34 +21,38 @@ export function createIconSetting(opts: {
       }
 
       textarea.onChange(async (v) => {
-        const svg = v.trim()
+        const svg = v.trim();
 
         if (svg && validSvgRegEx.test(svg)) {
-          await iconManager.setIcon(name, svg)
+          await iconManager.setIcon(name, svg);
         } else {
-          await iconManager.revertIcon(name)
+          await iconManager.revertIcon(name);
         }
       });
     })
+
+    // Reset icon button
     .addExtraButton((b) => {
       b.setIcon("reset");
       b.onClick(async () => {
         textComponent.setValue("");
-        await iconManager.revertIcon(name)
+        await iconManager.revertIcon(name);
       });
       b.setTooltip("Restore default");
+    })
+
+    // Icon display
+    .then((s) => {
+      const icoContainer = createDiv({ cls: "icon-swapper-container" });
+      const icoIcon = createDiv({ cls: "icon-swapper-icon" });
+      const icoName = createDiv({ cls: "icon-swapper-name" });
+
+      setIcon(icoIcon, name, 20);
+
+      icoName.setText(name);
+
+      icoContainer.appendChild(icoIcon);
+      icoContainer.appendChild(icoName);
+      s.nameEl.appendChild(icoContainer);
     });
-
-  const icoContainer = createDiv({ cls: "icon-swapper-container" });
-  const icoIcon = createDiv({ cls: "icon-swapper-icon" });
-  const icoName = createDiv({ cls: "icon-swapper-name" });
-
-  setIcon(icoIcon, name, 20);
-
-  icoName.setText(name);
-
-  icoContainer.appendChild(icoIcon);
-  icoContainer.appendChild(icoName);
-
-  s.nameEl.appendChild(icoContainer);
 }
