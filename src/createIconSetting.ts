@@ -24,35 +24,38 @@ export function createIconSetting({ containerEl, name, iconManager }: Options) {
         const svg = v.trim();
 
         if (svg && validSvgRegEx.test(svg)) {
-          await iconManager.setIcon(name, svg);
+          await iconManager.setIcon({ name, svg });
         } else {
-          await iconManager.revertIcon(name);
+          await iconManager.revertIcon({ name });
         }
       });
     })
 
     // Reset icon button
     .addExtraButton((b) => {
-      b.setIcon("reset");
-      b.onClick(async () => {
-        textComponent.setValue("");
-        await iconManager.revertIcon(name);
-      });
-      b.setTooltip("Restore default");
+      b.setIcon("reset")
+        .setTooltip("Restore default")
+        .onClick(async () => {
+          textComponent.setValue("");
+          await iconManager.revertIcon({ name });
+        });
     })
 
     // Icon display
-    .then((s) => {
-      const icoContainer = createDiv({ cls: "icon-swapper-container" });
-      const icoIcon = createDiv({ cls: "icon-swapper-icon" });
-      const icoName = createDiv({ cls: "icon-swapper-name" });
+    .then((setting) => {
+      setting.nameEl.createDiv(
+        { cls: "icon-swapper-container" },
+        (container) => {
+          container.createDiv({ cls: "icon-swapper-icon" }, (icon) => {
+            // Note: This, confusingly, is obsidian's `setIcon`, not `iconManager.setIcon`.
+            //       It's used to render an icon to the DOM
+            setIcon(icon, name, 20);
+          });
 
-      setIcon(icoIcon, name, 20);
-
-      icoName.setText(name);
-
-      icoContainer.appendChild(icoIcon);
-      icoContainer.appendChild(icoName);
-      s.nameEl.appendChild(icoContainer);
+          container.createDiv({ cls: "icon-swapper-container" }, (icoName) => {
+            icoName.setText(name);
+          });
+        }
+      );
     });
 }

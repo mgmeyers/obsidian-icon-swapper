@@ -27,8 +27,8 @@ export function getMaxViewBox(parsedSVG: INode) {
   }, 0);
 }
 
-// Scale a parsed SVG; adapted from https://github.com/elrumordelaluz/svg-path-tools
-export function scaleSVG(
+// Scale a parsed SVG child element; adapted from https://github.com/elrumordelaluz/svg-path-tools
+export function scalePath(
   node: INode,
   scaleOptions: { scale: number; round: number }
 ) {
@@ -65,7 +65,7 @@ export function scaleSVG(
 
     o.name = "path";
   } else if (o.children && Array.isArray(o.children)) {
-    const _scale = (c: any) => scaleSVG(c, scaleOptions);
+    const _scale = (c: any) => scalePath(c, scaleOptions);
     o.children = o.children.map(_scale);
   }
 

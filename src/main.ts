@@ -34,7 +34,7 @@ export default class IconSwapperPlugin extends Plugin {
 
   onunload() {
     // Revert all icons back to default, but don't save anything
-    this.iconManager.revertAll(true);
+    this.iconManager.revertAll({ shouldSave: false });
   }
 }
 
@@ -51,54 +51,66 @@ class ExportModal extends Modal {
 
     modalEl.addClass("modal-icon-swapper");
 
-    const output = stringify(this.plugin.iconManager.icons);
+    new Setting(contentEl)
+      .setName("Export icon configuration")
+      .then((setting) => {
+        // We only store the interior of the SVG in settings, so for safety and consistency,
+        // we wrap the exported SVG with an svg tag set to the correct viewbox
+        const wrappedIcons = Object.keys(this.plugin.iconManager.icons).reduce<{
+          [k: string]: string;
+        }>((icons, currentIcon) => {
+          icons[
+            currentIcon
+          ] = `<svg viewBox="0 0 100 100">${this.plugin.iconManager.icons[currentIcon]}</svg>`;
+          return icons;
+        }, {});
 
-    const header = new Setting(contentEl).setName("Export icon configuration");
+        const output = stringify(wrappedIcons);
 
-    // Build a download link
-    const exportButton = createEl("a", {
-      cls: "icon-swapper-download",
-      text: "Download",
-    });
+        // Build a copy to clipboard link
+        setting.controlEl.createEl(
+          "a",
+          {
+            cls: "icon-swapper-copy",
+            text: "Copy to clipboard",
+            href: "#",
+          },
+          (copyButton) => {
+            new TextAreaComponent(contentEl)
+              .setValue(output)
+              .then((textarea) => {
+                textarea.inputEl.setAttr("disabled", true);
 
-    exportButton.setAttr("download", "obsidian.icons");
-    exportButton.setAttr(
-      "href",
-      `data:text/plain;charset=utf-8,${encodeURIComponent(output)}`
-    );
+                copyButton.addEventListener("click", (e) => {
+                  e.preventDefault();
 
-    // Build a copy to clipboard link
-    const copyButton = createEl("a", {
-      cls: "icon-swapper-copy",
-      text: "Copy to clipboard",
-      href: "#",
-    });
+                  // Select the textarea contents and copy them to the clipboard
+                  textarea.inputEl.select();
+                  document.execCommand("copy");
 
-    header.controlEl.appendChild(copyButton);
-    header.controlEl.appendChild(exportButton);
+                  copyButton.addClass("success");
 
-    const textarea = new TextAreaComponent(contentEl)
-      .setValue(output)
-      .then((ta) => {
-        ta.inputEl.setAttr("disabled", true);
+                  setTimeout(() => {
+                    // If the button is still in the dom, remove the success class
+                    if (copyButton.parentNode) {
+                      copyButton.removeClass("success");
+                    }
+                  }, 2000);
+                });
+              });
+          }
+        );
+
+        // Build a download link
+        setting.controlEl.createEl("a", {
+          cls: "icon-swapper-download",
+          text: "Download",
+          attr: {
+            download: "icons.yml",
+            href: `data:text/yaml;charset=utf-8,${encodeURIComponent(output)}`,
+          },
+        });
       });
-
-    copyButton.addEventListener("click", (e) => {
-      e.preventDefault();
-
-      // Select the textarea contents and copy them to the clipboard
-      textarea.inputEl.select();
-      document.execCommand("copy");
-
-      copyButton.addClass("success");
-
-      setTimeout(() => {
-        // If the button is still in the dom, remove the success class
-        if (copyButton.parentNode) {
-          copyButton.removeClass("success");
-        }
-      }, 2000);
-    });
   }
 
   onClose() {
@@ -124,77 +136,81 @@ class ImportModal extends Modal {
       .setName("Import icon configuration")
       .setDesc("Warning: this will override any existing icon configuration");
 
-    const header = new Setting(contentEl);
+    new Setting(contentEl).then((setting) => {
+      // Build an error message container
+      const errorSpan = createSpan({
+        cls: "icon-swapper-import-error",
+        text: "Error importing config",
+      });
 
-    // Build an error message container
-    const errorSpan = createSpan({
-      cls: "icon-swapper-import-error",
-      text: "Error importing config",
-    });
+      setting.nameEl.appendChild(errorSpan);
 
-    header.nameEl.appendChild(errorSpan);
+      // Attempt to parse the imported data and close if successful
+      const importAndClose = async (str: string) => {
+        if (str) {
+          try {
+            const importedSettings = parse(str);
 
-    // Build a file import button
-    const importButton = createEl("input", {
-      cls: "icon-swapper-import-input",
-    });
+            await this.plugin.iconManager.revertAll({ shouldSave: false });
+            await this.plugin.iconManager.setAll(importedSettings);
 
-    importButton.setAttr("id", "icon-swapper-import-input");
-    importButton.setAttr("name", "icon-swapper-import-input");
-    importButton.setAttr("type", "file");
-    importButton.setAttr("accept", ".icons");
-
-    const importLabel = createEl("label", {
-      cls: "icon-swapper-import-label",
-      text: "Import from file",
-    });
-
-    importLabel.setAttr("for", "icon-swapper-import-input");
-
-    // Attempt to parse the imported data and close if successful
-    const importAndClose = async (str: string) => {
-      if (str) {
-        try {
-          const importedSettings = parse(str);
-
-          await this.plugin.iconManager.revertAll();
-          await this.plugin.iconManager.setAll(importedSettings);
-
-          this.plugin.settingsTab.display();
-          this.close();
-        } catch (e) {
+            this.plugin.settingsTab.display();
+            this.close();
+          } catch (e) {
+            errorSpan.addClass("active");
+            errorSpan.setText(`Error importing icon settings: ${e}`);
+          }
+        } else {
           errorSpan.addClass("active");
-          errorSpan.setText(`Error importing icon settings: ${e}`);
+          errorSpan.setText(`Error importing icon settings: config is empty`);
         }
-      } else {
-        errorSpan.addClass("active");
-        errorSpan.setText(`Error importing icon settings: config is empty`);
-      }
-    };
-
-    // Set up a FileReader so we can parse the file contents
-    importButton.addEventListener("change", (e) => {
-      const reader = new FileReader();
-
-      reader.onload = async (e: ProgressEvent<FileReader>) => {
-        await importAndClose(e.target.result.toString().trim());
       };
 
-      reader.readAsText((e.target as HTMLInputElement).files[0]);
-    });
+      // Build a file input
+      setting.controlEl.createEl(
+        "input",
+        {
+          cls: "icon-swapper-import-input",
+          attr: {
+            id: "icon-swapper-import-input",
+            name: "icon-swapper-import-input",
+            type: "file",
+            accept: ".yml",
+          },
+        },
+        (importInput) => {
+          // Set up a FileReader so we can parse the file contents
+          importInput.addEventListener("change", (e) => {
+            const reader = new FileReader();
 
-    header.controlEl.appendChild(importButton);
-    header.controlEl.appendChild(importLabel);
+            reader.onload = async (e: ProgressEvent<FileReader>) => {
+              await importAndClose(e.target.result.toString().trim());
+            };
 
-    new TextAreaComponent(contentEl)
-      .setPlaceholder("Paste config here...")
-      .then((ta) => {
-        new ButtonComponent(contentEl)
-          .setButtonText("Save")
-          .onClick(async () => {
-            await importAndClose(ta.getValue().trim());
+            reader.readAsText((e.target as HTMLInputElement).files[0]);
           });
+        }
+      );
+
+      // Build a label we will style as a link
+      setting.controlEl.createEl("label", {
+        cls: "icon-swapper-import-label",
+        text: "Import from file",
+        attr: {
+          for: "icon-swapper-import-input",
+        },
       });
+
+      new TextAreaComponent(contentEl)
+        .setPlaceholder("Paste config here...")
+        .then((ta) => {
+          new ButtonComponent(contentEl)
+            .setButtonText("Save")
+            .onClick(async () => {
+              await importAndClose(ta.getValue().trim());
+            });
+        });
+    });
   }
 
   onClose() {
@@ -217,46 +233,52 @@ class IconSwapperSettingsTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.addClass("icon-swapper");
 
-    const header = new Setting(containerEl);
+    new Setting(containerEl)
+      .then((setting) => {
+        // Build and import link to open the import modal
+        setting.controlEl.createEl(
+          "a",
+          {
+            cls: "icon-swapper-import",
+            text: "Import",
+            href: "#",
+          },
+          (el) => {
+            el.addEventListener("click", (e) => {
+              e.preventDefault();
+              new ImportModal(this.app, this.plugin).open();
+            });
+          }
+        );
 
-    // Build and export link to open the export modal
-    const exportButton = createEl("a", {
-      cls: "icon-swapper-export",
-      text: "Export",
-      href: "#",
-    });
+        // Build and export link to open the export modal
+        setting.controlEl.createEl(
+          "a",
+          {
+            cls: "icon-swapper-export",
+            text: "Export",
+            href: "#",
+          },
+          (el) => {
+            el.addEventListener("click", (e) => {
+              e.preventDefault();
+              new ExportModal(this.app, this.plugin).open();
+            });
+          }
+        );
+      })
 
-    exportButton.addEventListener("click", (e) => {
-      e.preventDefault();
-      new ExportModal(this.app, this.plugin).open();
-    });
+      // Build a revert link
+      .addExtraButton((b) => {
+        b.setIcon("reset")
+          .setTooltip("Restore default icons")
+          .onClick(async () => {
+            await this.plugin.iconManager.revertAll();
 
-    // Build and import link to open the import modal
-    const importButton = createEl("a", {
-      cls: "icon-swapper-import",
-      text: "Import",
-      href: "#",
-    });
-
-    importButton.addEventListener("click", (e) => {
-      e.preventDefault();
-      new ImportModal(this.app, this.plugin).open();
-    });
-
-    header.controlEl.appendChild(importButton);
-    header.controlEl.appendChild(exportButton);
-
-    // Build a revert link
-    header.addExtraButton((b) => {
-      b.setIcon("reset");
-      b.onClick(async () => {
-        await this.plugin.iconManager.revertAll();
-
-        // Rebuild settings pane after the changes have been made
-        this.display();
+            // Rebuild settings pane after the changes have been made
+            this.display();
+          });
       });
-      b.setTooltip("Restore default icons");
-    });
 
     // Build a setting for each icon
     icons.forEach((name) => {

@@ -3,13 +3,13 @@ import {
   getDefaultIconSVG,
   getMaxViewBox,
   replaceIconSVG,
-  scaleSVG,
+  scalePath,
 } from "./svg";
 
 export const validSvgRegEx = /^<svg[^>]+?>[\w\W]+?<\/svg>?/i;
 
 // Convert a user-supplied SVG to the correct format and size for addIcon
-export async function svgToIcon(name: string, value: string) {
+export async function svgToIcon(value: string) {
   try {
     const parsed = await parse(value);
     const maxViewBox = getMaxViewBox(parsed);
@@ -22,13 +22,13 @@ export async function svgToIcon(name: string, value: string) {
             // Scale the SVG to 100x100 only if the viewbox isn't already at 100
             maxViewBox === 100
               ? path
-              : scaleSVG(path, { scale: 100 / maxViewBox, round: 3 })
+              : scalePath(path, { scale: 100 / maxViewBox, round: 3 })
           )
         );
       });
     }
 
-    replaceIconSVG(name, children.join(""));
+    return children.join("");
   } catch (e) {
     console.error("Error parsing SVG:", e);
   }
@@ -56,21 +56,36 @@ export class IconManager {
 
   async loadIcons() {
     const icons = await this.load();
-    await this.setAll(icons);
+
+    for (const icon in icons) {
+      await this.setIcon({
+        name: icon,
+        svg: icons[icon],
+        shouldSave: false,
+        isTrustedSource: true,
+      });
+    }
   }
 
-  async setIcon(name: string, svg: string, skipSave?: boolean) {
+  async setIcon(opts: {
+    name: string;
+    svg: string;
+    shouldSave?: boolean;
+    isTrustedSource?: boolean;
+  }) {
+    const { name, svg, shouldSave = true, isTrustedSource = false } = opts;
+
     // Store a copy of the default icon if we haven't already
     if (!this.defaults[name]) {
       this.defaults[name] = getDefaultIconSVG(name);
     }
 
-    // Convert the icon and replace the default
-    await svgToIcon(name, svg);
+    const iconSVG = isTrustedSource ? svg : await svgToIcon(svg);
 
-    this.icons[name] = svg;
+    replaceIconSVG(name, iconSVG);
+    this.icons[name] = iconSVG;
 
-    if (!skipSave) {
+    if (shouldSave) {
       await this.save(this.icons);
     }
   }
@@ -83,30 +98,34 @@ export class IconManager {
       if (!svg) continue;
       if (!validSvgRegEx.test(svg)) continue;
 
-      await this.setIcon(icon, svg, true);
+      await this.setIcon({ name: icon, svg, shouldSave: false });
     }
 
     await this.save(this.icons);
   }
 
-  async revertIcon(name: string, skipSave?: boolean) {
+  async revertIcon(opts: { name: string; shouldSave?: boolean }) {
+    const { name, shouldSave = true } = opts;
+
     // Replace the supplied icon with the default
     if (this.icons[name]) {
       replaceIconSVG(name, this.defaults[name]);
       delete this.icons[name];
     }
 
-    if (!skipSave) {
+    if (shouldSave) {
       await this.save(this.icons);
     }
   }
 
-  async revertAll(skipSave?: boolean) {
+  async revertAll(opts: { shouldSave?: boolean } = {}) {
+    const { shouldSave = true } = opts;
+
     for (const icon in this.icons) {
-      this.revertIcon(icon, true);
+      this.revertIcon({ name: icon, shouldSave: false });
     }
 
-    if (!skipSave) {
+    if (shouldSave) {
       await this.save(this.icons);
     }
   }
