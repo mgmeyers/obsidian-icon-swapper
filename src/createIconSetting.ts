@@ -17,7 +17,7 @@ export function createIconSetting({ containerEl, name, iconManager }: Options) {
       textComponent = textarea;
 
       if (iconManager.icons[name]) {
-        textarea.setValue(iconManager.icons[name]);
+        textarea.setValue(`<svg viewBox="0 0 100 100">${iconManager.icons[name]}</svg>`);
       }
 
       textarea.onChange(async (v) => {
