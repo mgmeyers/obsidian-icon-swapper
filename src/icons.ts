@@ -9,7 +9,6 @@ export const icons = [
   "bracket-glyph",
   "broken-link",
   "bullet-list-glyph",
-  "bullet-list-glyph",
   "bullet-list",
   "calendar-glyph",
   "calendar-with-checkmark",
