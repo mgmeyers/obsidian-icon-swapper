@@ -30,11 +30,14 @@ export default class IconSwapperPlugin extends Plugin {
 
     // Load any stored icons
     await this.iconManager.loadIcons();
+
+    document.body.addClass("icon-swapper-enabled");
   }
 
   onunload() {
     // Revert all icons back to default, but don't save anything
     this.iconManager.revertAll({ shouldSave: false });
+    document.body.removeClass("icon-swapper-enabled");
   }
 }
 
