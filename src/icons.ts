@@ -133,7 +133,6 @@ export const icons = [
   "vault",
   "vertical-split",
   "vertical-three-dots",
-  "wand-glyph",
   "workspace-glyph",
   "wrench-screwdriver-glyph",
   "yesterday-glyph",
