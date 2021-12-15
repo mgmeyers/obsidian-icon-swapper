@@ -1,10 +1,6 @@
-import dotenv from "dotenv";
 import typescript from "@rollup/plugin-typescript";
 import { nodeResolve } from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
-import copy from "rollup-plugin-copy";
-
-dotenv.config();
 
 const isProd = process.env.BUILD === "production";
 
@@ -19,7 +15,7 @@ const output = [
     input: "./src/main.ts",
     output: {
       dir: ".",
-      sourcemap: "inline",
+      sourcemap: isProd ? false : "inline",
       sourcemapExcludeSources: isProd,
       format: "cjs",
       exports: "default",
@@ -29,31 +25,5 @@ const output = [
     plugins: [typescript(), nodeResolve({ browser: true }), commonjs()],
   },
 ];
-
-if (process.env.PLUGIN_DEST) {
-  output.push({
-    input: "./src/main.ts",
-    output: {
-      dir: process.env.PLUGIN_DEST,
-      sourcemap: "inline",
-      sourcemapExcludeSources: isProd,
-      format: "cjs",
-      exports: "default",
-      banner,
-    },
-    external: ["obsidian"],
-    plugins: [
-      typescript(),
-      nodeResolve({ browser: true }),
-      commonjs(),
-      copy({
-        targets: [
-          { src: "./manifest.json", dest: process.env.PLUGIN_DEST },
-          { src: "./styles.css", dest: process.env.PLUGIN_DEST },
-        ],
-      }),
-    ],
-  });
-}
 
 export default output;

@@ -11,3 +11,4 @@ main.js
 *.js.map
 .env
 .DS_Store
+.hotreload
